@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import sqlite3
 import bcrypt
 import time
+
 # 页面配置
 st.set_page_config(
     page_title="融思政 - 数字图像处理实验平台",
@@ -125,9 +126,9 @@ def add_user(username, password, role):
         salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
         create_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        c.execute( 
+        c.execute(
             "INSERT INTO users (username, password, role, create_time) VALUES (?, ?, ?, ?)", 
-            (username, hashed_password.decode('utf-8'), role, create_time) 
+            (username, hashed_password.decode('utf-8'), role, create_time)
         )
         conn.commit()
         conn.close()
@@ -154,6 +155,34 @@ def verify_user(username, password):
     except Exception as e:
         st.error(f"登录验证失败：{str(e)}")
         return False, None
+
+def change_password(username, old_password, new_password):
+    """修改用户密码"""
+    try:
+        # 首先验证旧密码
+        success, role = verify_user(username, old_password)
+        if not success:
+            return False, "旧密码错误"
+        
+        # 更新为新密码
+        conn = sqlite3.connect('image_processing_platform.db')
+        c = conn.cursor()
+        
+        # 对新密码进行哈希处理
+        salt = bcrypt.gensalt()
+        hashed_new_password = bcrypt.hashpw(new_password.encode('utf-8'), salt)
+        
+        # 更新密码
+        c.execute(
+            "UPDATE users SET password = ? WHERE username = ?",
+            (hashed_new_password.decode('utf-8'), username)
+        )
+        
+        conn.commit()
+        conn.close()
+        return True, "密码修改成功！"
+    except Exception as e:
+        return False, f"修改密码失败：{str(e)}"
 
 def get_user_stats():
     """获取用户统计数据"""
@@ -349,6 +378,11 @@ def apply_modern_css():
     .modern-nav-card.achievement {
         background: linear-gradient(135deg, #fff, var(--beige-light));
         border-top: 4px solid var(--dark-red);
+    }
+    
+    .modern-nav-card.submission {
+        background: linear-gradient(135deg, #fff, var(--beige-light));
+        border-top: 4px solid #10b981;
     }
     
     .nav-icon {
@@ -669,6 +703,16 @@ def apply_modern_css():
         margin: 20px 0;
     }
     
+    /* 修改密码对话框样式 */
+    .change-password-dialog {
+        background: white;
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        border: 2px solid #10b981;
+        margin: 20px 0;
+    }
+    
     /* 角色选择样式 */
     .role-selection {
         display: flex;
@@ -877,10 +921,19 @@ def render_sidebar():
             st.switch_page("main.py")
         if st.button("🔬 图像处理实验室", use_container_width=True):
             st.switch_page("pages/1_🔬_图像处理实验室.py")
+        if st.button("📝 智能与传统图片处理", use_container_width=True):
+            # 使用JavaScript在新标签页打开链接
+            js = """<script>window.open("https://29phcdb33h.coze.site", "_blank");</script>"""
+            st.components.v1.html(js, height=0)
+        if st.button("🏫加入班级与在线签到", use_container_width=True):
+            st.switch_page("pages/分班和在线签到.py")
+        if st.button("📤 实验作业提交", use_container_width=True):
+            st.switch_page("pages/实验作业提交.py")
         if st.button("📚 学习资源中心", use_container_width=True):
             st.switch_page("pages/2_📚_学习资源中心.py")
         if st.button("📝 我的思政足迹", use_container_width=True):
             st.switch_page("pages/3_📝_我的思政足迹.py")
+
         if st.button("🏆 成果展示", use_container_width=True):
             st.switch_page("pages/4_🏆_成果展示.py")
         
@@ -895,6 +948,7 @@ def render_sidebar():
                 <li style='color: #dc2626;'>🇨🇳 思政教育融合</li>
                 <li style='color: #dc2626;'>💡 创新实践平台</li>
                 <li style='color: #dc2626;'>🚀 现代化技术栈</li>
+                <li style='color: #dc2626;'>📤 作业提交系统</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -911,6 +965,7 @@ def render_sidebar():
                 <li style='color: #dc2626;'>🔬 科学态度</li>
                 <li style='color: #dc2626;'>💡 创新意识</li>
                 <li style='color: #dc2626;'>🇨🇳 家国情怀</li>
+                <li style='color: #dc2626;'>📚 自主学习能力</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -955,13 +1010,13 @@ def render_user_area():
     
     with col3:
         if st.session_state.logged_in:
-            # 已登录状态 - 显示用户信息和退出按钮
+            # 已登录状态 - 显示用户信息和功能按钮
             username = st.session_state.username
             role = st.session_state.role
             avatar_text = username[0].upper() if username else "U"
             
-            # 用户信息显示 - 合理布局
-            col_user1, col_user2, col_user3 = st.columns([1, 2, 1.2])
+            # 用户信息显示
+            col_user1, col_user2 = st.columns([1, 3])
             with col_user1:
                 st.markdown(f"""
                 <div style='
@@ -999,8 +1054,20 @@ def render_user_area():
                     <div style='color: #6b7280; font-size: 0.75rem; line-height: 1.2;'>{role}</div>
                 </div>
                 """, unsafe_allow_html=True)
-            with col_user3:
-                # 退出登录按钮 - 合理大小
+            
+            # 功能按钮区域
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                # 修改密码按钮
+                if st.button("🔑 改密", 
+                           key="change_pwd_btn", 
+                           help="修改密码", 
+                           use_container_width=True,
+                           type="secondary"):
+                    st.session_state.show_change_password = True
+                    st.rerun()
+            with col_btn2:
+                # 退出登录按钮
                 if st.button("🚪 退出", 
                            key="logout_btn", 
                            help="退出登录", 
@@ -1010,10 +1077,11 @@ def render_user_area():
                     st.session_state.username = ""
                     st.session_state.role = ""
                     st.session_state.show_login = False
+                    st.session_state.show_change_password = False
                     st.rerun()
                 
         else:
-            # 未登录状态 - 显示登录/注册按钮（合理大小）
+            # 未登录状态 - 显示登录/注册按钮
             if st.button("👤 登录/注册", 
                         key="login_btn", 
                         help="登录/注册", 
@@ -1023,6 +1091,81 @@ def render_user_area():
                 st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
+
+def render_change_password_dialog():
+    """渲染修改密码对话框"""
+    if st.session_state.get('show_change_password', False):
+        # 使用容器创建对话框效果
+        with st.container():
+            st.markdown("""
+            <div class='change-password-dialog'>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("### 🔑 修改密码")
+            st.info("为了保护您的账户安全，请定期修改密码。")
+            
+            with st.form("change_password_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    old_password = st.text_input("🔒 当前密码", 
+                                                type="password", 
+                                                placeholder="请输入当前密码",
+                                                key="old_password")
+                
+                with col2:
+                    new_password = st.text_input("🔐 新密码", 
+                                                type="password", 
+                                                placeholder="请输入新密码",
+                                                key="new_password",
+                                                help="建议使用8位以上包含字母、数字和特殊字符的组合")
+                
+                confirm_password = st.text_input("✅ 确认新密码", 
+                                                type="password", 
+                                                placeholder="请再次输入新密码",
+                                                key="confirm_password")
+                
+                col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
+                
+                with col_btn1:
+                    submit_btn = st.form_submit_button("💾 确认修改", 
+                                                      use_container_width=True,
+                                                      type="primary")
+                with col_btn2:
+                    if st.form_submit_button("❌ 取消", 
+                                           use_container_width=True,
+                                           type="secondary"):
+                        st.session_state.show_change_password = False
+                        st.rerun()
+                
+                if submit_btn:
+                    if not old_password or not new_password or not confirm_password:
+                        st.error("⚠️ 请填写所有密码字段")
+                    elif new_password != confirm_password:
+                        st.error("❌ 两次输入的新密码不一致")
+                    elif len(new_password) < 6:
+                        st.error("❌ 新密码长度至少6位")
+                    elif old_password == new_password:
+                        st.error("❌ 新密码不能与旧密码相同")
+                    else:
+                        # 调用修改密码函数
+                        success, message = change_password(
+                            st.session_state.username, 
+                            old_password, 
+                            new_password
+                        )
+                        
+                        if success:
+                            st.success(f"✅ {message}")
+                            st.balloons()
+                            # 等待2秒后关闭对话框
+                            time.sleep(2)
+                            st.session_state.show_change_password = False
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {message}")
+            
+            st.markdown("</div>", unsafe_allow_html=True)
 
 def render_login_dialog():
     """渲染登录注册对话框"""
@@ -1130,6 +1273,86 @@ def render_login_dialog():
             
             st.markdown("</div>", unsafe_allow_html=True)
 
+def get_experiment_stats():
+    """获取实验作业统计数据（仅教师端使用）"""
+    try:
+        conn = sqlite3.connect('image_processing_platform.db')
+        c = conn.cursor()
+        
+        # 获取总提交数
+        c.execute("SELECT COUNT(*) FROM experiment_submissions")
+        total_submissions = c.fetchone()[0]
+        
+        # 获取待批改数（status为'pending'）
+        c.execute("SELECT COUNT(*) FROM experiment_submissions WHERE status = 'pending'")
+        pending_count = c.fetchone()[0]
+        
+        # 获取已评分数（status为'graded'）
+        c.execute("SELECT COUNT(*) FROM experiment_submissions WHERE status = 'graded'")
+        graded_count = c.fetchone()[0]
+        
+        # 获取平均分
+        c.execute("SELECT AVG(score) FROM experiment_submissions WHERE score > 0")
+        avg_score_result = c.fetchone()[0]
+        avg_score = round(avg_score_result, 1) if avg_score_result else 0
+        
+        conn.close()
+        
+        return {
+            'total_submissions': total_submissions,
+            'pending_count': pending_count,
+            'graded_count': graded_count,
+            'avg_score': avg_score
+        }
+    except Exception as e:
+        print(f"获取作业统计数据失败: {str(e)}")
+        return {
+            'total_submissions': 0,
+            'pending_count': 0,
+            'graded_count': 0,
+            'avg_score': 0
+        }
+
+def get_submission_by_username(username):
+    """获取指定用户的提交情况"""
+    try:
+        conn = sqlite3.connect('image_processing_platform.db')
+        c = conn.cursor()
+        
+        # 获取用户提交总数
+        c.execute("SELECT COUNT(*) FROM experiment_submissions WHERE student_username = ?", (username,))
+        user_total = c.fetchone()[0]
+        
+        # 获取用户已评分数
+        c.execute("SELECT COUNT(*) FROM experiment_submissions WHERE student_username = ? AND status = 'graded'", (username,))
+        user_graded = c.fetchone()[0]
+        
+        # 获取用户待批改数
+        c.execute("SELECT COUNT(*) FROM experiment_submissions WHERE student_username = ? AND status = 'pending'", (username,))
+        user_pending = c.fetchone()[0]
+        
+        # 获取用户平均分
+        c.execute("SELECT AVG(score) FROM experiment_submissions WHERE student_username = ? AND score > 0", (username,))
+        avg_score_result = c.fetchone()[0]
+        user_avg_score = round(avg_score_result, 1) if avg_score_result else 0
+        
+        conn.close()
+        
+        return {
+            'user_total': user_total,
+            'user_graded': user_graded,
+            'user_pending': user_pending,
+            'user_avg_score': user_avg_score
+        }
+    except Exception as e:
+        print(f"获取用户提交情况失败: {str(e)}")
+        return {
+            'user_total': 0,
+            'user_graded': 0,
+            'user_pending': 0,
+            'user_avg_score': 0
+        }
+
 def main():
     # 初始化session_state
     if 'logged_in' not in st.session_state:
@@ -1142,6 +1365,8 @@ def main():
         st.session_state.show_login = False
     if 'selected_role' not in st.session_state:
         st.session_state.selected_role = "student"
+    if 'show_change_password' not in st.session_state:
+        st.session_state.show_change_password = False
     
     # 应用现代化CSS
     apply_modern_css()
@@ -1156,6 +1381,9 @@ def main():
         <p class='subtitle'>融国家之情怀，思技术之正道，育时代之新人</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # 修改密码对话框（优先显示）
+    render_change_password_dialog()
     
     # 登录注册对话框
     render_login_dialog()
@@ -1177,9 +1405,10 @@ def main():
         st.metric("📚 思政感悟", f"{stats['reflection_count']}", "实时更新")
     with col4:
         st.metric("🏆 优秀作品", "67", "+15%")    
-    # 两栏主要内容
+    
+    # 三栏主要内容（调整为三栏以容纳实验作业提交模块）
     st.markdown("## 🚀 核心功能模块")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         # 图像处理实验室
@@ -1243,6 +1472,68 @@ def main():
             else:
                 st.warning("请先登录")
     
+    with col3:
+        # 新增：实验作业提交
+        st.markdown("""
+        <div class='modern-nav-card submission'>
+            <div class='nav-icon'>📤</div>
+            <h3>实验作业提交</h3>
+            <p>提交实验作业和报告<br>获取教师反馈与评分</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("提交作业", key="submission_btn", use_container_width=True):
+            if st.session_state.logged_in:
+                st.switch_page("pages/实验作业提交.py")
+            else:
+                st.warning("请先登录")
+        
+        # 根据用户角色显示不同的作业状态信息
+        if st.session_state.logged_in:
+            if st.session_state.role == "teacher":
+                # 教师端：显示全局作业状态
+                teacher_stats = get_experiment_stats()
+                st.markdown("""
+                <div style='background: linear-gradient(135deg, #f0fdf4, #dcfce7); 
+                            padding: 25px; border-radius: 15px; margin-top: 20px;
+                            border: 2px solid #10b981;'>
+                    <h4 style='color: #10b981; text-align: center;'>📊 教师工作台</h4>
+                    <p style='color: #065f46; text-align: center; font-size: 0.9rem;'>
+                    📋 总提交: {total_submissions} 份<br>
+                    ⏳ 待批改: {pending_count} 份<br>
+                    ✅ 已批改: {graded_count} 份<br>
+                    ⭐ 平均分: {avg_score} 分
+                    </p>
+                </div>
+                """.format(
+                    total_submissions=teacher_stats['total_submissions'],
+                    pending_count=teacher_stats['pending_count'],
+                    graded_count=teacher_stats['graded_count'],
+                    avg_score=teacher_stats['avg_score']
+                ), unsafe_allow_html=True)
+                
+            elif st.session_state.role == "student":
+                # 学生端：显示个人作业状态
+                student_stats = get_submission_by_username(st.session_state.username)
+                st.markdown("""
+                <div style='background: linear-gradient(135deg, #f0fdf4, #dcfce7); 
+                            padding: 25px; border-radius: 15px; margin-top: 20px;
+                            border: 2px solid #10b981;'>
+                    <h4 style='color: #10b981; text-align: center;'>📊 我的作业</h4>
+                    <p style='color: #065f46; text-align: center; font-size: 0.9rem;'>
+                    📤 已提交: {user_total} 份<br>
+                    ⏳ 待批改: {user_pending} 份<br>
+                    ✅ 已批改: {user_graded} 份<br>
+                    ⭐ 平均分: {user_avg_score} 分
+                    </p>
+                </div>
+                """.format(
+                    user_total=student_stats['user_total'],
+                    user_pending=student_stats['user_pending'],
+                    user_graded=student_stats['user_graded'],
+                    user_avg_score=student_stats['user_avg_score']
+                ), unsafe_allow_html=True)
+    
     # 思政资源长廊
     st.markdown("---")
     st.markdown("<h2 style='text-align: center; color: #8B0000; margin-bottom: 40px; font-family: SimSun, serif;'>🇨🇳 思政资源长廊</h2>", unsafe_allow_html=True)
@@ -1276,10 +1567,7 @@ def main():
         '>—— 钱学森</div>
     </div>
     """, unsafe_allow_html=True)
-    # 科学家卡片网格 - 横向滚动版
-
-
-
+    
     # 第一行科学家
     st.markdown('<div class="modern-scientists-container">', unsafe_allow_html=True)
     st.markdown('<div class="modern-scientists-row">', unsafe_allow_html=True)
@@ -1391,11 +1679,12 @@ def main():
         """, unsafe_allow_html=True)
 
     st.markdown('</div></div>', unsafe_allow_html=True)
+    
     # 新增：平台特色功能展示
     st.markdown("---")
     st.markdown("<h2 style='text-align: center; color: #8B0000; margin-bottom: 40px; font-family: SimSun, serif;'>✨ 平台特色功能</h2>", unsafe_allow_html=True)
     
-    feature_col1, feature_col2, feature_col3 = st.columns(3)
+    feature_col1, feature_col2, feature_col3, feature_col4 = st.columns(4)
     
     with feature_col1:
         st.markdown("""
@@ -1421,6 +1710,15 @@ def main():
             <div style='font-size: 3rem; margin-bottom: 15px;'>📊</div>
             <h4 style='color: #dc2626;'>学习数据分析</h4>
             <p style='color: #6b7280;'>实时追踪学习进度，个性化推荐资源，助力高效学习成长</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with feature_col4:
+        st.markdown("""
+        <div style='text-align: center; padding: 20px;'>
+            <div style='font-size: 3rem; margin-bottom: 15px;'>📤</div>
+            <h4 style='color: #dc2626;'>智能作业系统</h4>
+            <p style='color: #6b7280;'>在线提交作业，及时获取反馈，提升学习效果与教学质量</p>
         </div>
         """, unsafe_allow_html=True)
 
