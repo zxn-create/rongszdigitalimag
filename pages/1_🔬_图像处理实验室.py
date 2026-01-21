@@ -19,8 +19,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 import warnings
 warnings.filterwarnings('ignore')
-plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']  # 设置中文字体
-plt.rcParams['axes.unicode_minus'] = False  # 正确显示负号
+# ========== 设置中文字体和样式 ==========
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'Arial Unicode MS', 'DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
+
+
+# ========== 辅助函数 ==========
 st.set_page_config(
     page_title="图像处理实验室 - 融思政平台",
     page_icon="🔬",
